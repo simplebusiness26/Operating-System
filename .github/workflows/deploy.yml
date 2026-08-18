@@ -46,3 +46,31 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Verify workers.dev routing
+        run: |
+          ACCOUNT_JSON=$(curl --fail-with-body --silent --show-error \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          ROUTE_JSON=$(curl --fail-with-body --silent --show-error \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/personal-operating-system/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          echo "Account workers.dev response: ${ACCOUNT_JSON}"
+          echo "Worker route response: ${ROUTE_JSON}"
+          SUBDOMAIN=$(python -c 'import json,os; print(json.loads(os.environ["ACCOUNT_JSON"])["result"]["subdomain"])')
+          URL="https://personal-operating-system.${SUBDOMAIN}.workers.dev/api/health"
+          echo "Canonical health URL: ${URL}"
+          for i in 1 2 3 4 5 6; do
+            if curl --fail-with-body --silent --show-error --max-time 15 "${URL}"; then
+              echo
+              echo "Public health check passed: ${URL}"
+              exit 0
+            fi
+            echo "Health check attempt ${i} failed; retrying in 10s..."
+            sleep 10
+          done
+          echo "Cloudflare reports the route enabled, but the public hostname is still unreachable: ${URL}"
+          exit 1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ACCOUNT_JSON: ""
