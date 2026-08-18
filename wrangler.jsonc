@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "personal-operating-system",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/webhooks/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "operating-system"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "AI_MODE": "deterministic",
+    "AI_MODEL": "@cf/openai/gpt-oss-20b",
+    "REQUIRE_AUTH": "false",
+    "APP_NAME": "Operating System"
+  },
+  "triggers": {
+    "crons": ["0 7 * * *"]
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  }
+}

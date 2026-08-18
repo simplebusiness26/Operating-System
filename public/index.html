@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#080b0f" />
+  <meta name="description" content="Personal intelligence infrastructure that converts activity into memory, knowledge, content and opportunities." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <title>Operating System</title>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><span>OS</span></div>
+        <div><strong>Operating System</strong><small>Personal intelligence</small></div>
+      </div>
+      <nav id="desktopNav" class="nav-list">
+        <button class="nav-item active" data-view="command"><span>⌁</span> Command</button>
+        <button class="nav-item" data-view="timeline"><span>◷</span> Timeline</button>
+        <button class="nav-item" data-view="projects"><span>◫</span> Projects</button>
+        <button class="nav-item" data-view="agents"><span>✦</span> Agents</button>
+        <button class="nav-item" data-view="content"><span>✎</span> Studio</button>
+        <button class="nav-item" data-view="documentary"><span>▻</span> Documentary</button>
+      </nav>
+      <div class="system-chip"><i></i><div><strong>System online</strong><small id="aiModeLabel">deterministic core</small></div></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><span class="eyebrow" id="viewEyebrow">MISSION CONTROL</span><h1 id="viewTitle">Command</h1></div>
+        <div class="top-actions">
+          <button class="icon-btn" id="refreshBtn" aria-label="Refresh">↻</button>
+          <button class="capture-btn" id="captureBtn"><span>＋</span> Capture</button>
+        </div>
+      </header>
+
+      <section id="view-command" class="view active">
+        <div class="hero-grid">
+          <article class="hero-card glass">
+            <div class="hero-top"><span class="status-dot"></span><span>CHIEF OF STAFF BRIEF</span><button id="regenBrief" class="text-btn">REFRESH</button></div>
+            <h2 id="briefHeadline">Building your operating picture…</h2>
+            <p id="briefSignal">The system is waiting for its first useful signals.</p>
+            <div class="focus-list" id="focusList"></div>
+          </article>
+          <article class="ask-card glass">
+            <span class="eyebrow">ASK YOUR HISTORY</span>
+            <h3>What do you need to know?</h3>
+            <p>Ask across decisions, lessons, unfinished work, projects and captured evidence.</p>
+            <form id="askForm" class="ask-form"><input id="askInput" autocomplete="off" placeholder="What did I learn about…" /><button>↑</button></form>
+            <div id="askAnswer" class="ask-answer hidden"></div>
+          </article>
+        </div>
+
+        <div class="metric-grid" id="metricGrid">
+          <article class="metric glass"><small>EVENTS</small><strong data-count="events">0</strong><span>captured truth</span></article>
+          <article class="metric glass"><small>MEMORY</small><strong data-count="memories">0</strong><span>durable records</span></article>
+          <article class="metric glass"><small>OPEN LOOPS</small><strong data-count="open_loops">0</strong><span>need attention</span></article>
+          <article class="metric glass"><small>CONTENT</small><strong data-count="content">0</strong><span>ready to shape</span></article>
+        </div>
+
+        <div class="two-col">
+          <article class="panel glass">
+            <div class="panel-head"><div><span class="eyebrow">LIVE MEMORY</span><h3>Recent signals</h3></div><button class="text-btn view-link" data-view="timeline">VIEW TIMELINE</button></div>
+            <div id="recentEvents" class="event-list empty-state">Nothing captured yet.</div>
+          </article>
+          <article class="panel glass">
+            <div class="panel-head"><div><span class="eyebrow">ATTENTION</span><h3>Open loops</h3></div><span class="count-pill" id="loopCount">0</span></div>
+            <div id="openLoops" class="loop-list empty-state">No open loops.</div>
+          </article>
+        </div>
+
+        <div class="two-col lower">
+          <article class="panel glass">
+            <div class="panel-head"><div><span class="eyebrow">SIGNALS</span><h3>Opportunity radar</h3></div><span class="radar-pulse"></span></div>
+            <div id="insightList" class="insight-list empty-state">No high-signal patterns yet.</div>
+          </article>
+          <article class="panel glass">
+            <div class="panel-head"><div><span class="eyebrow">OUTPUT</span><h3>Content queue</h3></div><button class="text-btn view-link" data-view="content">OPEN STUDIO</button></div>
+            <div id="contentPreview" class="content-preview empty-state">The Ghostwriter is waiting for source material.</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="view-timeline" class="view">
+        <div class="toolbar glass"><input id="timelineSearch" placeholder="Search your history…" /><select id="timelineLimit"><option value="30">30 events</option><option value="60" selected>60 events</option><option value="120">120 events</option></select></div>
+        <div id="timelineList" class="timeline glass"></div>
+      </section>
+
+      <section id="view-projects" class="view">
+        <div class="section-intro"><div><span class="eyebrow">ACTIVE CONTEXT</span><h2>Your work, not scattered chats.</h2><p>Projects become durable containers for events, decisions, lessons, open loops and outputs.</p></div><button class="capture-btn" id="newProjectBtn">＋ Project</button></div>
+        <div id="projectGrid" class="project-grid"></div>
+      </section>
+
+      <section id="view-agents" class="view">
+        <div class="section-intro"><div><span class="eyebrow">INTELLIGENCE PIPELINE</span><h2>Eight jobs. One shared memory.</h2><p>Each specialist has a narrow responsibility. They create evidence-linked outputs instead of pretending one model should do everything.</p></div></div>
+        <div id="agentGrid" class="agent-grid"></div>
+        <article class="panel glass"><div class="panel-head"><div><span class="eyebrow">AUDIT TRAIL</span><h3>Recent agent runs</h3></div></div><div id="agentRuns" class="run-list"></div></article>
+      </section>
+
+      <section id="view-content" class="view">
+        <div class="section-intro"><div><span class="eyebrow">GHOSTWRITER + PRODUCER</span><h2>Turn proof into output.</h2><p>Drafts are generated from captured work, with the source trail preserved.</p></div></div>
+        <div class="studio-tabs"><button class="tab active" data-status="">All</button><button class="tab" data-status="draft">Drafts</button><button class="tab" data-status="ready">Ready</button><button class="tab" data-status="published">Published</button></div>
+        <div id="studioGrid" class="studio-grid"></div>
+      </section>
+
+      <section id="view-documentary" class="view">
+        <div class="documentary-hero glass"><span class="eyebrow">THE BUILD</span><h2 id="docTitle">Your work becomes a story automatically.</h2><p id="docLogline">Conflict, decisions, breakthroughs and payoffs are preserved while they happen.</p><div class="film-line"></div></div>
+        <div id="documentaryBeats" class="documentary-list"></div>
+      </section>
+    </main>
+
+    <nav class="mobile-nav">
+      <button class="active" data-view="command">⌁<small>Command</small></button>
+      <button data-view="timeline">◷<small>Timeline</small></button>
+      <button class="capture-fab" id="captureFab">＋</button>
+      <button data-view="agents">✦<small>Agents</small></button>
+      <button data-view="content">✎<small>Studio</small></button>
+    </nav>
+  </div>
+
+  <dialog id="captureDialog" class="modal">
+    <form id="captureForm" method="dialog">
+      <div class="modal-head"><div><span class="eyebrow">CAPTURE SIGNAL</span><h2>What happened?</h2></div><button type="button" class="close-btn" data-close>×</button></div>
+      <label>Title<input id="captureTitle" required placeholder="Fixed the deployment issue" /></label>
+      <label>Detail<textarea id="captureBody" rows="5" placeholder="What changed, why it mattered, what you learned…"></textarea></label>
+      <div class="form-row"><label>Project<input id="captureProject" list="projectOptions" placeholder="Operating System" /></label><label>Importance<select id="captureImportance"><option value="">Automatic</option><option value="50">Normal</option><option value="70">Important</option><option value="90">Critical</option></select></label></div>
+      <datalist id="projectOptions"></datalist>
+      <div class="type-pills"><button type="button" data-event-type="note" class="active">Note</button><button type="button" data-event-type="decision">Decision</button><button type="button" data-event-type="learning">Learning</button><button type="button" data-event-type="idea">Idea</button><button type="button" data-event-type="problem">Problem</button><button type="button" data-event-type="milestone">Win</button></div>
+      <button class="submit-btn" type="submit">Send through the system <span>→</span></button>
+      <p class="microcopy">One capture can create memory, insight, strategy, content and documentary signals.</p>
+    </form>
+  </dialog>
+
+  <dialog id="projectDialog" class="modal small-modal">
+    <form id="projectForm" method="dialog">
+      <div class="modal-head"><div><span class="eyebrow">NEW CONTEXT</span><h2>Create project</h2></div><button type="button" class="close-btn" data-close>×</button></div>
+      <label>Name<input id="projectName" required placeholder="New product" /></label>
+      <label>Goal<textarea id="projectGoal" rows="3" placeholder="What does success look like?"></textarea></label>
+      <button class="submit-btn" type="submit">Create project <span>→</span></button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
