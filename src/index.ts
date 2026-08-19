@@ -19,12 +19,16 @@ import type { EventInput, Json } from './types';
 import type { RuntimeEnv } from './env';
 import { constantTimeSecretEquals, json, normalizeText } from './utils';
 
-async function authorized(request: Request, env: RuntimeEnv): Promise<boolean> {
-  if (env.REQUIRE_AUTH !== 'true') return true;
+async function accessTokenAuthorized(request: Request, env: RuntimeEnv): Promise<boolean> {
   if (!env.OS_ACCESS_TOKEN) return false;
   const auth = request.headers.get('authorization') ?? '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : request.headers.get('x-os-token') ?? '';
   return token ? constantTimeSecretEquals(token, env.OS_ACCESS_TOKEN) : false;
+}
+
+async function authorized(request: Request, env: RuntimeEnv): Promise<boolean> {
+  if (env.REQUIRE_AUTH !== 'true') return true;
+  return accessTokenAuthorized(request, env);
 }
 
 async function readJson<T>(request: Request): Promise<T> {
@@ -59,6 +63,17 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
     });
   }
 
+  // These diagnostics expose the owner's internal capability picture and can
+  // trigger an outbound sync. They always require the explicit OS access token,
+  // even while the rest of a first-run OS is temporarily configured with
+  // REQUIRE_AUTH=false.
+  if (path === '/api/radar/snapshot' || path === '/api/radar/sync') {
+    if (!(await accessTokenAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (path === '/api/radar/snapshot' && request.method === 'GET') return json(await buildRadarSnapshot(env.DB));
+    if (path === '/api/radar/sync' && request.method === 'POST') return json(await syncRadar(env));
+    return json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
   if (!(await authorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
 
   if (path === '/api/dashboard' && request.method === 'GET') return json(await getDashboard(env.DB));
@@ -69,8 +84,6 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
   if (path === '/api/open-loops' && request.method === 'GET') return json(await getOpenLoops(env.DB));
   if (path === '/api/content' && request.method === 'GET') return json(await getContent(env.DB, url.searchParams.get('status')));
   if (path === '/api/agents' && request.method === 'GET') return json(await getAgentRuns(env.DB));
-  if (path === '/api/radar/snapshot' && request.method === 'GET') return json(await buildRadarSnapshot(env.DB));
-  if (path === '/api/radar/sync' && request.method === 'POST') return json(await syncRadar(env));
 
   if (path === '/api/events' && request.method === 'POST') {
     const body = await readJson<EventInput>(request);
