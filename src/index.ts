@@ -19,11 +19,22 @@ import type { EventInput, Json } from './types';
 import type { RuntimeEnv } from './env';
 import { constantTimeSecretEquals, json, normalizeText } from './utils';
 
+function bearerToken(request: Request): string {
+  const auth = request.headers.get('authorization') ?? '';
+  return auth.startsWith('Bearer ') ? auth.slice(7) : '';
+}
+
 async function accessTokenAuthorized(request: Request, env: RuntimeEnv): Promise<boolean> {
   if (!env.OS_ACCESS_TOKEN) return false;
-  const auth = request.headers.get('authorization') ?? '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : request.headers.get('x-os-token') ?? '';
+  const token = bearerToken(request) || request.headers.get('x-os-token') || '';
   return token ? constantTimeSecretEquals(token, env.OS_ACCESS_TOKEN) : false;
+}
+
+async function radarSyncTriggerAuthorized(request: Request, env: RuntimeEnv): Promise<boolean> {
+  if (await accessTokenAuthorized(request, env)) return true;
+  if (!env.RADAR_SYNC_TOKEN) return false;
+  const token = bearerToken(request);
+  return token ? constantTimeSecretEquals(token, env.RADAR_SYNC_TOKEN) : false;
 }
 
 async function authorized(request: Request, env: RuntimeEnv): Promise<boolean> {
@@ -63,15 +74,19 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
     });
   }
 
-  // These diagnostics expose the owner's internal capability picture and can
-  // trigger an outbound sync. They always require the explicit OS access token,
-  // even while the rest of a first-run OS is temporarily configured with
-  // REQUIRE_AUTH=false.
-  if (path === '/api/radar/snapshot' || path === '/api/radar/sync') {
+  // Snapshot access exposes the owner's internal capability picture and always
+  // requires the OS access token. The sync action is write-only from the caller's
+  // perspective, so it may also be triggered by the dedicated Radar bridge token.
+  if (path === '/api/radar/snapshot') {
     if (!(await accessTokenAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (path === '/api/radar/snapshot' && request.method === 'GET') return json(await buildRadarSnapshot(env.DB));
-    if (path === '/api/radar/sync' && request.method === 'POST') return json(await syncRadar(env));
+    if (request.method === 'GET') return json(await buildRadarSnapshot(env.DB));
     return json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
+  if (path === '/api/radar/sync') {
+    if (request.method !== 'POST') return json({ error: 'Method not allowed' }, { status: 405 });
+    if (!(await radarSyncTriggerAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
+    return json(await syncRadar(env));
   }
 
   if (!(await authorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
