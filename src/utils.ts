@@ -44,7 +44,7 @@ export function inferEventType(title: string, body = ''): string {
   const text = `${title} ${body}`.toLowerCase();
   if (/\b(decided|decision|choose|chose|locked in|we will|going with)\b/.test(text)) return 'decision';
   if (/\b(fixed|solved|working|shipped|deployed|completed|done)\b/.test(text)) return 'milestone';
-  if (/\b(error|bug|broken|failed|crash|problem|issue)\b/.test(text)) return 'problem';
+  if (/\b(error|bug|broken|failed|crash(?:ed|es|ing)?|problem|issue)\b/.test(text)) return 'problem';
   if (/\b(idea|could build|what if|maybe|opportunity)\b/.test(text)) return 'idea';
   if (/\b(learned|realised|realized|lesson|discovered)\b/.test(text)) return 'learning';
   if (/\b(commit|pull request|merge|branch)\b/.test(text)) return 'code';
