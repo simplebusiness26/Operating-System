@@ -25,7 +25,7 @@ function list(value: unknown): string[] {
   return Array.isArray(value) ? value.map(text).filter(Boolean) : [];
 }
 
-function nativeRadarEnvelope(body: AnyRecord): AnyRecord {
+export function nativeRadarEnvelope(body: AnyRecord): AnyRecord {
   const brief = object(body.brief);
   const input = object(brief.input);
   const readiness = object(brief.readiness);
