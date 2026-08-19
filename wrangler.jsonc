@@ -24,7 +24,8 @@
     "AI_MODE": "deterministic",
     "AI_MODEL": "@cf/openai/gpt-oss-20b",
     "REQUIRE_AUTH": "false",
-    "APP_NAME": "Operating System"
+    "APP_NAME": "Operating System",
+    "RADAR_URL": "https://the-opportunity-radar.vercel.app"
   },
   "triggers": {
     "crons": ["0 7 * * *"]
