@@ -212,12 +212,17 @@ export async function buildRadarSnapshot(db: D1Database): Promise<RadarSnapshot>
     });
   }
 
+  // The node name is deliberately stable. If a project's objective changes,
+  // Radar updates this goal's target rather than retaining the old objective as
+  // a second strategic goal.
   const projectGoals: RadarGoal[] = projects
     .filter((project) => project.goal.trim().length >= 3)
     .map((project) => ({
-      name: `${project.name}: ${project.goal}`.slice(0, 200),
+      name: `${project.name} project goal`.slice(0, 200),
       horizon: 'quarter',
       priority: 5,
+      metric: 'project_objective',
+      target: project.goal.slice(0, 200),
       evidenceRefs: [`os-project:${project.id}`],
     }));
 
