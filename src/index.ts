@@ -14,6 +14,7 @@ import {
   updateContentStatus
 } from './db';
 import { githubPayloadToEvents, verifyGitHubSignature } from './github';
+import { buildRadarSnapshot, syncRadar } from './radar';
 import type { EventInput, Json } from './types';
 import type { RuntimeEnv } from './env';
 import { constantTimeSecretEquals, json, normalizeText } from './utils';
@@ -32,12 +33,30 @@ async function readJson<T>(request: Request): Promise<T> {
   return await request.json() as T;
 }
 
+async function syncRadarSafely(env: RuntimeEnv): Promise<void> {
+  try {
+    await syncRadar(env);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      subsystem: 'radar-sync',
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+}
+
 async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
 
   if (path === '/api/health') {
-    return json({ ok: true, app: env.APP_NAME, aiMode: env.AI_MODE, time: new Date().toISOString() });
+    return json({
+      ok: true,
+      app: env.APP_NAME,
+      aiMode: env.AI_MODE,
+      radarSyncConfigured: Boolean(env.RADAR_URL && env.RADAR_SYNC_TOKEN),
+      time: new Date().toISOString()
+    });
   }
 
   if (!(await authorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
@@ -50,6 +69,8 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
   if (path === '/api/open-loops' && request.method === 'GET') return json(await getOpenLoops(env.DB));
   if (path === '/api/content' && request.method === 'GET') return json(await getContent(env.DB, url.searchParams.get('status')));
   if (path === '/api/agents' && request.method === 'GET') return json(await getAgentRuns(env.DB));
+  if (path === '/api/radar/snapshot' && request.method === 'GET') return json(await buildRadarSnapshot(env.DB));
+  if (path === '/api/radar/sync' && request.method === 'POST') return json(await syncRadar(env));
 
   if (path === '/api/events' && request.method === 'POST') {
     const body = await readJson<EventInput>(request);
@@ -57,13 +78,16 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
     const event = await insertEvent(env.DB, body);
     const pipeline = await runPipeline(env.DB, event);
     ctx.waitUntil(generateDailyBrief(env.DB));
+    ctx.waitUntil(syncRadarSafely(env));
     return json({ event, pipeline }, { status: 201 });
   }
 
   if (path === '/api/projects' && request.method === 'POST') {
     const body = await readJson<{ name: string; summary?: string; goal?: string }>(request);
     if (!normalizeText(body.name)) return json({ error: 'name is required' }, { status: 400 });
-    return json(await createProject(env.DB, body), { status: 201 });
+    const project = await createProject(env.DB, body);
+    ctx.waitUntil(syncRadarSafely(env));
+    return json(project, { status: 201 });
   }
 
   if (path === '/api/search' && request.method === 'GET') {
@@ -162,7 +186,10 @@ async function githubWebhook(request: Request, env: RuntimeEnv, ctx: ExecutionCo
     const pipeline = await runPipeline(env.DB, event);
     created.push({ event, pipeline });
   }
-  if (created.length) ctx.waitUntil(generateDailyBrief(env.DB));
+  if (created.length) {
+    ctx.waitUntil(generateDailyBrief(env.DB));
+    ctx.waitUntil(syncRadarSafely(env));
+  }
   return json({ accepted: true, eventName, created: created.length });
 }
 
@@ -181,5 +208,6 @@ export default {
 
   async scheduled(_controller: ScheduledController, env: RuntimeEnv, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(generateDailyBrief(env.DB));
+    ctx.waitUntil(syncRadarSafely(env));
   }
 } satisfies ExportedHandler<RuntimeEnv>;
