@@ -14,6 +14,7 @@ import {
   updateContentStatus
 } from './db';
 import { githubPayloadToEvents, verifyGitHubSignature } from './github';
+import { syncGitHubRepositoryInventory } from './github-inventory';
 import { buildRadarSnapshot, syncRadar } from './radar';
 import type { EventInput, Json } from './types';
 import type { RuntimeEnv } from './env';
@@ -60,6 +61,12 @@ async function syncRadarSafely(env: RuntimeEnv): Promise<void> {
   }
 }
 
+async function refreshInternalIntelligence(env: RuntimeEnv) {
+  const inventory = await syncGitHubRepositoryInventory(env.DB, env);
+  const radar = await syncRadar(env);
+  return { inventory, radar };
+}
+
 async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -69,23 +76,25 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
       ok: true,
       app: env.APP_NAME,
       aiMode: env.AI_MODE,
+      githubInventoryConfigured: Boolean(env.GITHUB_OWNER),
       radarSyncConfigured: Boolean(env.RADAR_URL && env.RADAR_SYNC_TOKEN),
       time: new Date().toISOString()
     });
   }
 
   // Snapshot access exposes the owner's internal capability picture and always
-  // requires the OS access token. The sync action is write-only from the caller's
-  // perspective, so it may also be triggered by the dedicated Radar bridge token.
+  // requires the OS access token. Sync/refresh actions are write-only from the
+  // caller's perspective, so the dedicated Radar bridge token may trigger them.
   if (path === '/api/radar/snapshot') {
     if (!(await accessTokenAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
     if (request.method === 'GET') return json(await buildRadarSnapshot(env.DB));
     return json({ error: 'Method not allowed' }, { status: 405 });
   }
 
-  if (path === '/api/radar/sync') {
+  if (path === '/api/radar/sync' || path === '/api/radar/refresh') {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, { status: 405 });
     if (!(await radarSyncTriggerAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (path === '/api/radar/refresh') return json(await refreshInternalIntelligence(env));
     return json(await syncRadar(env));
   }
 
@@ -234,8 +243,19 @@ export default {
     }
   },
 
-  async scheduled(_controller: ScheduledController, env: RuntimeEnv, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(generateDailyBrief(env.DB));
-    ctx.waitUntil(syncRadarSafely(env));
+  async scheduled(controller: ScheduledController, env: RuntimeEnv, ctx: ExecutionContext): Promise<void> {
+    if (controller.cron === '0 7 * * *') ctx.waitUntil(generateDailyBrief(env.DB));
+    ctx.waitUntil((async () => {
+      try {
+        await syncGitHubRepositoryInventory(env.DB, env);
+      } catch (error) {
+        console.error(JSON.stringify({
+          level: 'error',
+          subsystem: 'github-inventory',
+          message: error instanceof Error ? error.message : String(error)
+        }));
+      }
+      await syncRadarSafely(env);
+    })());
   }
 } satisfies ExportedHandler<RuntimeEnv>;
