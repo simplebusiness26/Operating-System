@@ -14,7 +14,7 @@ import {
   updateContentStatus
 } from './db';
 import { githubPayloadToEvents, verifyGitHubSignature } from './github';
-import { syncGitHubRepositoryInventory } from './github-inventory';
+import { ingestGitHubRepositoryInventory, type GitHubRepoInput } from './github-inventory';
 import { buildRadarSnapshot, syncRadar } from './radar';
 import type { EventInput, Json } from './types';
 import type { RuntimeEnv } from './env';
@@ -61,12 +61,6 @@ async function syncRadarSafely(env: RuntimeEnv): Promise<void> {
   }
 }
 
-async function refreshInternalIntelligence(env: RuntimeEnv) {
-  const inventory = await syncGitHubRepositoryInventory(env.DB, env);
-  const radar = await syncRadar(env);
-  return { inventory, radar };
-}
-
 async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -83,7 +77,7 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
   }
 
   // Snapshot access exposes the owner's internal capability picture and always
-  // requires the OS access token. Sync/refresh actions are write-only from the
+  // requires the OS access token. Sync/import actions are write-only from the
   // caller's perspective, so the dedicated Radar bridge token may trigger them.
   if (path === '/api/radar/snapshot') {
     if (!(await accessTokenAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
@@ -91,11 +85,30 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
     return json({ error: 'Method not allowed' }, { status: 405 });
   }
 
-  if (path === '/api/radar/sync' || path === '/api/radar/refresh') {
+  if (path === '/api/radar/sync') {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, { status: 405 });
     if (!(await radarSyncTriggerAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
-    if (path === '/api/radar/refresh') return json(await refreshInternalIntelligence(env));
     return json(await syncRadar(env));
+  }
+
+  if (path === '/api/github/inventory') {
+    if (request.method !== 'POST') return json({ error: 'Method not allowed' }, { status: 405 });
+    if (!(await radarSyncTriggerAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
+
+    const body = await readJson<{ owner?: string; repositories?: GitHubRepoInput[] }>(request);
+    const configuredOwner = normalizeText(env.GITHUB_OWNER);
+    const suppliedOwner = normalizeText(body.owner);
+    const owner = suppliedOwner || configuredOwner;
+    if (!owner) return json({ error: 'GITHUB_OWNER is not configured' }, { status: 400 });
+    if (configuredOwner && owner.toLowerCase() !== configuredOwner.toLowerCase()) {
+      return json({ error: 'Inventory owner does not match configured GitHub owner' }, { status: 400 });
+    }
+    if (!Array.isArray(body.repositories)) return json({ error: 'repositories must be an array' }, { status: 400 });
+    if (body.repositories.length > 300) return json({ error: 'Too many repositories in one inventory update' }, { status: 413 });
+
+    const inventory = await ingestGitHubRepositoryInventory(env.DB, owner, body.repositories);
+    const radar = await syncRadar(env);
+    return json({ inventory, radar });
   }
 
   if (!(await authorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
@@ -245,17 +258,6 @@ export default {
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv, ctx: ExecutionContext): Promise<void> {
     if (controller.cron === '0 7 * * *') ctx.waitUntil(generateDailyBrief(env.DB));
-    ctx.waitUntil((async () => {
-      try {
-        await syncGitHubRepositoryInventory(env.DB, env);
-      } catch (error) {
-        console.error(JSON.stringify({
-          level: 'error',
-          subsystem: 'github-inventory',
-          message: error instanceof Error ? error.message : String(error)
-        }));
-      }
-      await syncRadarSafely(env);
-    })());
+    ctx.waitUntil(syncRadarSafely(env));
   }
 } satisfies ExportedHandler<RuntimeEnv>;
