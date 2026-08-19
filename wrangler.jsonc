@@ -1,3 +1,4 @@
+// Deployment touch: refresh OS context into Radar's managed free sources.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "personal-operating-system",
