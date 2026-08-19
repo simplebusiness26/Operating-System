@@ -1,0 +1,80 @@
+name: Verify Radar Managed Sources
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-radar-managed-sources.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: verify-radar-managed-sources
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      OS_URL: https://personal-operating-system.simplebussiness26.workers.dev
+      RADAR_SYNC_TOKEN: ${{ secrets.RADAR_SYNC_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify bridge token exists
+        shell: bash
+        run: |
+          if [ -z "$RADAR_SYNC_TOKEN" ]; then
+            echo "RADAR_SYNC_TOKEN is not configured."
+            exit 1
+          fi
+
+      - name: Run live OS to Radar sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTTP_CODE=$(curl --silent --show-error --retry 2 --retry-all-errors --max-time 90 \
+            --output /tmp/radar-sync.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${RADAR_SYNC_TOKEN}" \
+            "${OS_URL}/api/radar/sync")
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            cat /tmp/radar-sync.json || true
+            echo "OS to Radar verification failed with HTTP ${HTTP_CODE}."
+            exit 1
+          fi
+
+          python - <<'PY' > /tmp/managed-source-status.json
+          import json
+          from datetime import datetime, timezone
+
+          payload = json.load(open('/tmp/radar-sync.json'))
+          data = payload.get('result', {}).get('data', {})
+          print(json.dumps({
+              'checkedAt': datetime.now(timezone.utc).isoformat(),
+              'syncConfigured': bool(payload.get('configured')),
+              'managedFreeSources': int(data.get('managedFreeSources', 0) or 0),
+              'activeFreeSources': int(data.get('activeFreeSources', 0) or 0),
+              'managedSourceWarningPresent': bool(data.get('managedSourceWarning')),
+          }, indent=2))
+          PY
+
+      - name: Publish non-secret verification status
+        shell: bash
+        run: |
+          mkdir -p status
+          cp /tmp/managed-source-status.json status/radar-managed-sources.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status/radar-managed-sources.json
+          if git diff --cached --quiet; then
+            echo "Managed-source status unchanged."
+          else
+            git commit -m "chore: update Radar managed source status [skip ci]"
+            git push
+          fi
+          cat status/radar-managed-sources.json
