@@ -1,3 +1,17 @@
 # Copy to .dev.vars for local development. Never commit .dev.vars.
 OS_ACCESS_TOKEN=change-me
 GITHUB_WEBHOOK_SECRET=change-me
+
+# Opportunity Radar -> Operating System
+RADAR_INGRESS_TOKEN=change-me-radar-ingress
+
+# Operating System -> AI Factory
+FACTORY_URL=https://your-ai-factory.workers.dev
+FACTORY_WRITE_TOKEN=change-me-factory-write
+
+# AI Factory -> Operating System
+FACTORY_RESULT_TOKEN=change-me-factory-results
+
+# Operating System -> Opportunity Radar feedback
+RADAR_FEEDBACK_URL=https://your-radar-host/api/v1/execution/feedback
+RADAR_FEEDBACK_TOKEN=change-me-radar-feedback
