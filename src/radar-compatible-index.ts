@@ -25,6 +25,12 @@ function list(value: unknown): string[] {
   return Array.isArray(value) ? value.map(text).filter(Boolean) : [];
 }
 
+function osScore(confidence: unknown): number | undefined {
+  if (typeof confidence !== 'number' || !Number.isFinite(confidence)) return undefined;
+  const scaled = confidence >= 0 && confidence <= 1 ? confidence * 100 : confidence;
+  return Math.max(0, Math.min(100, Math.round(scaled)));
+}
+
 export function nativeRadarEnvelope(body: AnyRecord): AnyRecord {
   const brief = object(body.brief);
   const input = object(brief.input);
@@ -36,13 +42,15 @@ export function nativeRadarEnvelope(body: AnyRecord): AnyRecord {
   const explicitConstraints = list(body.constraints);
   const readinessReason = text(readiness.reason);
   const successThreshold = text(validation.successThreshold);
+  const confidence = typeof input.confidence === 'number' ? input.confidence : body.confidence;
 
   return {
     ...body,
     title: text(body.title) || text(brief.headline) || text(input.title),
     summary: text(body.summary) || text(input.thesis) || text(input.problemStatement),
     objective: text(body.objective) || text(brief.headline) || text(input.title),
-    confidence: typeof input.confidence === 'number' ? input.confidence : body.confidence,
+    confidence,
+    score: osScore(confidence) ?? body.score,
     constraints: [...explicitConstraints, ...criticalUnknowns, ...assumptions, ...(readinessReason ? [readinessReason] : [])].slice(0, 30),
     successCriteria: successThreshold ? [successThreshold] : list(body.successCriteria)
   };
