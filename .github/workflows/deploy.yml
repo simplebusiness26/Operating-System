@@ -32,7 +32,7 @@ jobs:
           GITHUB_WEBHOOK_SECRET: ${{ secrets.OS_WEBHOOK_SECRET }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Sync OS, Radar and optional GitHub secrets to Cloudflare
+      - name: Sync OS and Radar secrets to Cloudflare
         run: |
           if [ -n "$OS_ACCESS_TOKEN" ]; then
             printf '%s' "$OS_ACCESS_TOKEN" | npx wrangler secret put OS_ACCESS_TOKEN
@@ -44,15 +44,9 @@ jobs:
           else
             echo "RADAR_SYNC_TOKEN not configured in GitHub; Radar bridge remains disabled."
           fi
-          if [ -n "$GITHUB_INVENTORY_TOKEN" ]; then
-            printf '%s' "$GITHUB_INVENTORY_TOKEN" | npx wrangler secret put GITHUB_TOKEN
-          else
-            echo "GITHUB_INVENTORY_TOKEN not configured; public repository inventory will be used."
-          fi
         env:
           OS_ACCESS_TOKEN: ${{ secrets.OS_ACCESS_TOKEN }}
           RADAR_SYNC_TOKEN: ${{ secrets.RADAR_SYNC_TOKEN }}
-          GITHUB_INVENTORY_TOKEN: ${{ secrets.GITHUB_INVENTORY_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: npx wrangler deploy
@@ -96,13 +90,15 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Refresh GitHub inventory and verify Radar bridge
+      - name: Import GitHub inventory and verify Radar bridge
         if: success()
         shell: bash
         env:
           RADAR_SYNC_TOKEN: ${{ secrets.RADAR_SYNC_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER_NAME: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
           ACCOUNT_JSON=$(curl --fail-with-body --silent --show-error \
@@ -111,11 +107,42 @@ jobs:
           SUBDOMAIN=$(printf '%s' "$ACCOUNT_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["result"]["subdomain"])')
           BASE_URL="https://personal-operating-system.${SUBDOMAIN}.workers.dev"
           HEALTH_URL="${BASE_URL}/api/health"
-          HEALTH_JSON=$(curl --fail-with-body --silent --show-error --max-time 15 "$HEALTH_URL")
-          CONFIGURED=$(printf '%s' "$HEALTH_JSON" | python -c 'import json,sys; print(str(bool(json.load(sys.stdin).get("radarSyncConfigured"))).lower())')
-          INVENTORY_CONFIGURED=$(printf '%s' "$HEALTH_JSON" | python -c 'import json,sys; print(str(bool(json.load(sys.stdin).get("githubInventoryConfigured"))).lower())')
+
+          CONFIGURED=false
+          INVENTORY_CONFIGURED=false
+          for i in 1 2 3 4 5 6; do
+            HEALTH_JSON=$(curl --fail-with-body --silent --show-error --max-time 15 "$HEALTH_URL")
+            CONFIGURED=$(printf '%s' "$HEALTH_JSON" | python -c 'import json,sys; print(str(bool(json.load(sys.stdin).get("radarSyncConfigured"))).lower())')
+            INVENTORY_CONFIGURED=$(printf '%s' "$HEALTH_JSON" | python -c 'import json,sys; print(str(bool(json.load(sys.stdin).get("githubInventoryConfigured"))).lower())')
+            if [ "$CONFIGURED" = "true" ] && [ "$INVENTORY_CONFIGURED" = "true" ]; then break; fi
+            echo "Waiting for the new Worker configuration to propagate..."
+            sleep 10
+          done
 
           if [ -n "$RADAR_SYNC_TOKEN" ]; then REPO_SECRET_PRESENT=true; else REPO_SECRET_PRESENT=false; fi
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${GH_API_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/users/${GITHUB_OWNER_NAME}/repos?per_page=100&type=owner&sort=updated&direction=desc" \
+            > /tmp/github-repos.json
+
+          GITHUB_OWNER_NAME="$GITHUB_OWNER_NAME" python - <<'PY' > /tmp/os-github-inventory.json
+          import json, os
+          repos = json.load(open('/tmp/github-repos.json'))
+          safe = []
+          keep = {
+              'name','full_name','html_url','description','homepage','language','topics',
+              'fork','archived','disabled','pushed_at','updated_at','visibility','owner'
+          }
+          for repo in repos:
+              item = {k: repo.get(k) for k in keep if k in repo}
+              if isinstance(item.get('owner'), dict):
+                  item['owner'] = {'login': item['owner'].get('login')}
+              safe.append(item)
+          print(json.dumps({'owner': os.environ['GITHUB_OWNER_NAME'], 'repositories': safe}))
+          PY
 
           SYNC_STATUS="not_attempted"
           REPOSITORIES_SEEN=0
@@ -123,19 +150,21 @@ jobs:
           EVIDENCE_CREATED=0
           if [ "$CONFIGURED" = "true" ] && [ -n "$RADAR_SYNC_TOKEN" ]; then
             HTTP_CODE=$(curl --silent --show-error --max-time 90 \
-              --output /tmp/os-radar-refresh.json \
+              --output /tmp/os-github-import-result.json \
               --write-out '%{http_code}' \
               --request POST \
               --header "Authorization: Bearer ${RADAR_SYNC_TOKEN}" \
-              "${BASE_URL}/api/radar/refresh")
+              --header "Content-Type: application/json" \
+              --data-binary @/tmp/os-github-inventory.json \
+              "${BASE_URL}/api/github/inventory")
             if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
               SYNC_STATUS="success"
-              REPOSITORIES_SEEN=$(python -c 'import json; d=json.load(open("/tmp/os-radar-refresh.json")); print(d.get("inventory",{}).get("repositoriesSeen",0))')
-              PROJECTS_UPSERTED=$(python -c 'import json; d=json.load(open("/tmp/os-radar-refresh.json")); print(d.get("inventory",{}).get("projectsUpserted",0))')
-              EVIDENCE_CREATED=$(python -c 'import json; d=json.load(open("/tmp/os-radar-refresh.json")); print(d.get("inventory",{}).get("evidenceCreated",0))')
+              REPOSITORIES_SEEN=$(python -c 'import json; d=json.load(open("/tmp/os-github-import-result.json")); print(d.get("inventory",{}).get("repositoriesSeen",0))')
+              PROJECTS_UPSERTED=$(python -c 'import json; d=json.load(open("/tmp/os-github-import-result.json")); print(d.get("inventory",{}).get("projectsUpserted",0))')
+              EVIDENCE_CREATED=$(python -c 'import json; d=json.load(open("/tmp/os-github-import-result.json")); print(d.get("inventory",{}).get("evidenceCreated",0))')
             else
               SYNC_STATUS="failed_http_${HTTP_CODE}"
-              cat /tmp/os-radar-refresh.json || true
+              cat /tmp/os-github-import-result.json || true
             fi
           elif [ "$CONFIGURED" = "true" ]; then
             SYNC_STATUS="bridge_token_missing_from_workflow"
@@ -173,3 +202,4 @@ jobs:
           fi
 
           cat status/os-radar-bridge.json
+          if [ "$SYNC_STATUS" != "success" ]; then exit 1; fi

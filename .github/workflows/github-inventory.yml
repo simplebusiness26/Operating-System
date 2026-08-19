@@ -1,0 +1,86 @@
+name: Sync GitHub Repository Inventory
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */6 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os-github-repository-inventory
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Refresh OS repository inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OS_URL: https://personal-operating-system.simplebussiness26.workers.dev
+      RADAR_SYNC_TOKEN: ${{ secrets.RADAR_SYNC_TOKEN }}
+      GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_OWNER_NAME: ${{ github.repository_owner }}
+    steps:
+      - name: Verify bridge token exists
+        shell: bash
+        run: |
+          if [ -z "$RADAR_SYNC_TOKEN" ]; then
+            echo "RADAR_SYNC_TOKEN is not configured."
+            exit 1
+          fi
+
+      - name: Build public repository inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${GH_API_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/users/${GITHUB_OWNER_NAME}/repos?per_page=100&type=owner&sort=updated&direction=desc" \
+            > /tmp/github-repos.json
+
+          GITHUB_OWNER_NAME="$GITHUB_OWNER_NAME" python - <<'PY' > /tmp/os-github-inventory.json
+          import json, os
+          repos = json.load(open('/tmp/github-repos.json'))
+          keep = {
+              'name','full_name','html_url','description','homepage','language','topics',
+              'fork','archived','disabled','pushed_at','updated_at','visibility','owner'
+          }
+          safe = []
+          for repo in repos:
+              item = {k: repo.get(k) for k in keep if k in repo}
+              if isinstance(item.get('owner'), dict):
+                  item['owner'] = {'login': item['owner'].get('login')}
+              safe.append(item)
+          print(json.dumps({'owner': os.environ['GITHUB_OWNER_NAME'], 'repositories': safe}))
+          PY
+
+      - name: Import inventory into Operating System and Radar
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          http_code="$(curl \
+            --silent \
+            --show-error \
+            --retry 2 \
+            --retry-all-errors \
+            --max-time 90 \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${RADAR_SYNC_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data-binary @/tmp/os-github-inventory.json \
+            "${OS_URL}/api/github/inventory")"
+
+          cat "$response_file"
+          echo
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "Repository inventory sync failed with HTTP ${http_code}."
+            exit 1
+          fi
+          echo "Repository inventory sync completed successfully (HTTP ${http_code})."
