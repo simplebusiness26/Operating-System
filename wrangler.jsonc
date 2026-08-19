@@ -1,3 +1,4 @@
+// Deployment touch: refresh Cloudflare secrets and run OS → Radar bridge verification.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "personal-operating-system",
