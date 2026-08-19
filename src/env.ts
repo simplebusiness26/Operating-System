@@ -7,7 +7,7 @@ type GeneratedEnv = Env;
  */
 export type RuntimeEnv = Omit<
   GeneratedEnv,
-  'AI_MODE' | 'AI_MODEL' | 'REQUIRE_AUTH' | 'APP_NAME' | 'RADAR_URL'
+  'AI_MODE' | 'AI_MODEL' | 'REQUIRE_AUTH' | 'APP_NAME' | 'RADAR_URL' | 'GITHUB_OWNER'
 > & {
   AI_MODE: 'deterministic' | 'workers-ai';
   AI_MODEL: string;
@@ -15,6 +15,10 @@ export type RuntimeEnv = Omit<
   APP_NAME: string;
   OS_ACCESS_TOKEN?: string;
   GITHUB_WEBHOOK_SECRET?: string;
+  /** GitHub account whose repositories form the owner's automatic project inventory. */
+  GITHUB_OWNER?: string;
+  /** Optional GitHub token. Public repositories work without it; a token can add private repos later. */
+  GITHUB_TOKEN?: string;
   /** Public base URL of the owner's Opportunity Radar deployment. */
   RADAR_URL?: string;
   /** Dedicated machine token shared only with Radar's OS sync endpoint. */
