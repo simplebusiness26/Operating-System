@@ -1,0 +1,2 @@
+This file records the first post-configuration OS → Radar sync trigger.
+No secrets or runtime data are stored here.
