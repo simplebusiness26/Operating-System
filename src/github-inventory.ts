@@ -6,7 +6,7 @@ interface GitHubOwner {
   login?: string;
 }
 
-interface GitHubRepo {
+export interface GitHubRepoInput {
   name?: string;
   full_name?: string;
   html_url?: string;
@@ -61,7 +61,7 @@ function inventoryUrl(env: RuntimeEnv, owner: string, page: number): string {
   return url.toString();
 }
 
-function repoSummary(repo: GitHubRepo): string {
+function repoSummary(repo: GitHubRepoInput): string {
   const parts: string[] = [];
   if (repo.description?.trim()) parts.push(repo.description.trim());
   if (repo.language?.trim()) parts.push(`Primary language: ${repo.language.trim()}.`);
@@ -70,26 +70,16 @@ function repoSummary(repo: GitHubRepo): string {
   return parts.join(' ').slice(0, 2000);
 }
 
-export async function syncGitHubRepositoryInventory(
+export async function ingestGitHubRepositoryInventory(
   db: D1Database,
-  env: RuntimeEnv,
+  owner: string,
+  repos: GitHubRepoInput[],
 ): Promise<GitHubInventoryResult> {
-  const owner = env.GITHUB_OWNER?.trim();
-  if (!owner) return { configured: false };
-
-  const repos: GitHubRepo[] = [];
-  for (let page = 1; page <= 3; page += 1) {
-    const response = await fetch(inventoryUrl(env, owner, page), { headers: headers(env) });
-    if (!response.ok) {
-      throw new Error(`GitHub repository inventory failed with HTTP ${response.status}`);
-    }
-    const batch = await response.json() as GitHubRepo[];
-    repos.push(...batch);
-    if (batch.length < 100) break;
-  }
+  const normalizedOwner = owner.trim();
+  if (!normalizedOwner) return { configured: false };
 
   const owned = repos.filter((repo) => {
-    const sameOwner = !repo.owner?.login || repo.owner.login.toLowerCase() === owner.toLowerCase();
+    const sameOwner = !repo.owner?.login || repo.owner.login.toLowerCase() === normalizedOwner.toLowerCase();
     return sameOwner && !repo.fork && !repo.archived && !repo.disabled && Boolean(repo.name?.trim());
   });
 
@@ -112,14 +102,14 @@ export async function syncGitHubRepositoryInventory(
     }
     projectsUpserted += 1;
 
-    const repoUrl = repo.html_url?.trim() || `https://github.com/${owner}/${encodeURIComponent(name)}`;
+    const repoUrl = repo.html_url?.trim() || `https://github.com/${normalizedOwner}/${encodeURIComponent(name)}`;
     const existing = await db.prepare(
       "SELECT id FROM events WHERE source = 'github-inventory' AND raw_ref = ? LIMIT 1"
     ).bind(repoUrl).first<{ id: string }>();
 
     if (!existing?.id) {
       const metadataText = [
-        `GitHub repository ${repo.full_name ?? `${owner}/${name}`}.`,
+        `GitHub repository ${repo.full_name ?? `${normalizedOwner}/${name}`}.`,
         summary,
         repo.visibility ? `Visibility: ${repo.visibility}.` : '',
       ].filter(Boolean).join(' ');
@@ -134,7 +124,7 @@ export async function syncGitHubRepositoryInventory(
         importance: 45,
         rawRef: repoUrl,
         metadata: {
-          repository: repo.full_name ?? `${owner}/${name}`,
+          repository: repo.full_name ?? `${normalizedOwner}/${name}`,
           language: repo.language ?? null,
           topics: repo.topics ?? [],
           visibility: repo.visibility ?? 'public',
@@ -147,9 +137,35 @@ export async function syncGitHubRepositoryInventory(
 
   return {
     configured: true,
-    owner,
+    owner: normalizedOwner,
     repositoriesSeen: owned.length,
     projectsUpserted,
     evidenceCreated,
   };
+}
+
+/**
+ * Fallback inventory path for environments where the Worker itself can call
+ * GitHub reliably. Production primarily uses GitHub Actions to avoid shared-IP
+ * rate limits on unauthenticated Worker traffic.
+ */
+export async function syncGitHubRepositoryInventory(
+  db: D1Database,
+  env: RuntimeEnv,
+): Promise<GitHubInventoryResult> {
+  const owner = env.GITHUB_OWNER?.trim();
+  if (!owner) return { configured: false };
+
+  const repos: GitHubRepoInput[] = [];
+  for (let page = 1; page <= 3; page += 1) {
+    const response = await fetch(inventoryUrl(env, owner, page), { headers: headers(env) });
+    if (!response.ok) {
+      throw new Error(`GitHub repository inventory failed with HTTP ${response.status}`);
+    }
+    const batch = await response.json() as GitHubRepoInput[];
+    repos.push(...batch);
+    if (batch.length < 100) break;
+  }
+
+  return ingestGitHubRepositoryInventory(db, owner, repos);
 }
