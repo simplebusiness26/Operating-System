@@ -1,8 +1,8 @@
 {
-  "checkedAt": "2026-08-19T02:18:20.934184+00:00",
+  "checkedAt": "2026-08-19T02:22:01.980763+00:00",
   "cloudflareHealthReachable": true,
   "radarSyncConfigured": true,
   "githubRadarSyncSecretPresent": true,
-  "initialSyncStatus": "awaiting_event_or_cron",
+  "initialSyncStatus": "success",
   "healthUrl": "https://personal-operating-system.simplebussiness26.workers.dev/api/health"
 }
