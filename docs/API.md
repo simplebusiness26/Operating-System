@@ -4,11 +4,11 @@ All `/api/*` routes except `/api/health` require the access token when `REQUIRE_
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/health` | runtime / AI mode health |
+| GET | `/api/health` | runtime / AI mode / Radar-sync health |
 | GET | `/api/dashboard` | Mission Control aggregate |
 | GET | `/api/timeline` | chronological evidence |
-| POST | `/api/events` | capture event + run intelligence pipeline |
-| GET/POST | `/api/projects` | project contexts |
+| POST | `/api/events` | capture event + run intelligence pipeline; schedules Radar sync when configured |
+| GET/POST | `/api/projects` | project contexts; project creation schedules Radar sync when configured |
 | GET | `/api/search?q=` | lexical search across memories and outputs |
 | POST | `/api/ask` | evidence-grounded question answering |
 | POST | `/api/brief/generate` | regenerate Chief of Staff brief |
@@ -20,4 +20,6 @@ All `/api/*` routes except `/api/health` require the access token when `REQUIRE_
 | GET | `/api/documentary?days=30` | documentary outline from preserved beats |
 | GET | `/api/reflection?days=7` | weekly/monthly reflection packet |
 | GET | `/api/export` | portable JSON export of user-owned data |
-| POST | `/webhooks/github` | signed GitHub webhook ingress |
+| GET | `/api/radar/snapshot` | inspect the exact internal-intelligence snapshot that would be sent to Opportunity Radar |
+| POST | `/api/radar/sync` | immediately push the current snapshot to Opportunity Radar |
+| POST | `/webhooks/github` | signed GitHub webhook ingress; successful batches schedule Radar sync when configured |

@@ -14,16 +14,21 @@ import {
   updateContentStatus
 } from './db';
 import { githubPayloadToEvents, verifyGitHubSignature } from './github';
+import { buildRadarSnapshot, syncRadar } from './radar';
 import type { EventInput, Json } from './types';
 import type { RuntimeEnv } from './env';
 import { constantTimeSecretEquals, json, normalizeText } from './utils';
 
-async function authorized(request: Request, env: RuntimeEnv): Promise<boolean> {
-  if (env.REQUIRE_AUTH !== 'true') return true;
+async function accessTokenAuthorized(request: Request, env: RuntimeEnv): Promise<boolean> {
   if (!env.OS_ACCESS_TOKEN) return false;
   const auth = request.headers.get('authorization') ?? '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : request.headers.get('x-os-token') ?? '';
   return token ? constantTimeSecretEquals(token, env.OS_ACCESS_TOKEN) : false;
+}
+
+async function authorized(request: Request, env: RuntimeEnv): Promise<boolean> {
+  if (env.REQUIRE_AUTH !== 'true') return true;
+  return accessTokenAuthorized(request, env);
 }
 
 async function readJson<T>(request: Request): Promise<T> {
@@ -32,12 +37,41 @@ async function readJson<T>(request: Request): Promise<T> {
   return await request.json() as T;
 }
 
+async function syncRadarSafely(env: RuntimeEnv): Promise<void> {
+  try {
+    await syncRadar(env);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      subsystem: 'radar-sync',
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+}
+
 async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
 
   if (path === '/api/health') {
-    return json({ ok: true, app: env.APP_NAME, aiMode: env.AI_MODE, time: new Date().toISOString() });
+    return json({
+      ok: true,
+      app: env.APP_NAME,
+      aiMode: env.AI_MODE,
+      radarSyncConfigured: Boolean(env.RADAR_URL && env.RADAR_SYNC_TOKEN),
+      time: new Date().toISOString()
+    });
+  }
+
+  // These diagnostics expose the owner's internal capability picture and can
+  // trigger an outbound sync. They always require the explicit OS access token,
+  // even while the rest of a first-run OS is temporarily configured with
+  // REQUIRE_AUTH=false.
+  if (path === '/api/radar/snapshot' || path === '/api/radar/sync') {
+    if (!(await accessTokenAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
+    if (path === '/api/radar/snapshot' && request.method === 'GET') return json(await buildRadarSnapshot(env.DB));
+    if (path === '/api/radar/sync' && request.method === 'POST') return json(await syncRadar(env));
+    return json({ error: 'Method not allowed' }, { status: 405 });
   }
 
   if (!(await authorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
@@ -57,13 +91,16 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
     const event = await insertEvent(env.DB, body);
     const pipeline = await runPipeline(env.DB, event);
     ctx.waitUntil(generateDailyBrief(env.DB));
+    ctx.waitUntil(syncRadarSafely(env));
     return json({ event, pipeline }, { status: 201 });
   }
 
   if (path === '/api/projects' && request.method === 'POST') {
     const body = await readJson<{ name: string; summary?: string; goal?: string }>(request);
     if (!normalizeText(body.name)) return json({ error: 'name is required' }, { status: 400 });
-    return json(await createProject(env.DB, body), { status: 201 });
+    const project = await createProject(env.DB, body);
+    ctx.waitUntil(syncRadarSafely(env));
+    return json(project, { status: 201 });
   }
 
   if (path === '/api/search' && request.method === 'GET') {
@@ -162,7 +199,10 @@ async function githubWebhook(request: Request, env: RuntimeEnv, ctx: ExecutionCo
     const pipeline = await runPipeline(env.DB, event);
     created.push({ event, pipeline });
   }
-  if (created.length) ctx.waitUntil(generateDailyBrief(env.DB));
+  if (created.length) {
+    ctx.waitUntil(generateDailyBrief(env.DB));
+    ctx.waitUntil(syncRadarSafely(env));
+  }
   return json({ accepted: true, eventName, created: created.length });
 }
 
@@ -181,5 +221,6 @@ export default {
 
   async scheduled(_controller: ScheduledController, env: RuntimeEnv, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(generateDailyBrief(env.DB));
+    ctx.waitUntil(syncRadarSafely(env));
   }
 } satisfies ExportedHandler<RuntimeEnv>;
