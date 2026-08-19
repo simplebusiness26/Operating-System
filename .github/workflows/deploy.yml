@@ -1,4 +1,5 @@
 name: Deploy Cloudflare
+# Touching this workflow also provides a safe way to redeploy after bridge-secret changes.
 on:
   workflow_dispatch:
   push:
