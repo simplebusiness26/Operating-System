@@ -26,10 +26,11 @@
     "REQUIRE_AUTH": "false",
     "APP_NAME": "Operating System",
     "GITHUB_OWNER": "simplebusiness26",
+    "GITHUB_ACTIVITY_SKIP_REPOS": "Operating-System",
     "RADAR_URL": "https://the-opportunity-radar.vercel.app"
   },
   "triggers": {
-    "crons": ["0 7 * * *"]
+    "crons": ["0 7 * * *", "17 * * * *"]
   },
   "observability": {
     "enabled": true,
