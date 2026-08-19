@@ -1,8 +1,12 @@
 {
-  "checkedAt": "2026-08-19T02:39:53.568570+00:00",
+  "checkedAt": "2026-08-19T02:44:52.499390+00:00",
   "cloudflareHealthReachable": true,
+  "githubInventoryConfigured": false,
+  "githubRepositoriesSeen": 0,
+  "githubProjectsUpserted": 0,
+  "githubEvidenceCreated": 0,
   "radarSyncConfigured": true,
   "githubRadarSyncSecretPresent": true,
-  "initialSyncStatus": "success",
+  "initialSyncStatus": "failed_http_500",
   "healthUrl": "https://personal-operating-system.simplebussiness26.workers.dev/api/health"
 }
