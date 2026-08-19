@@ -35,7 +35,7 @@ function headers(env: RuntimeEnv): Headers {
   const out = new Headers({
     accept: 'application/vnd.github+json',
     'user-agent': 'PersonalOperatingSystem/1.0',
-    'x-github-api-version': '2022-11-28',
+    'x-github-api-version': '2026-03-10',
   });
   if (env.GITHUB_TOKEN) out.set('authorization', `Bearer ${env.GITHUB_TOKEN}`);
   return out;
