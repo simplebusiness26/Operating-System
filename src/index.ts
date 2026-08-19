@@ -14,7 +14,8 @@ import {
   updateContentStatus
 } from './db';
 import { githubPayloadToEvents, verifyGitHubSignature } from './github';
-import { ingestGitHubRepositoryInventory, type GitHubRepoInput } from './github-inventory';
+import { syncGitHubActivity } from './github-activity';
+import { ingestGitHubRepositoryInventory, syncGitHubRepositoryInventory, type GitHubRepoInput } from './github-inventory';
 import { buildRadarSnapshot, syncRadar } from './radar';
 import type { EventInput, Json } from './types';
 import type { RuntimeEnv } from './env';
@@ -61,6 +62,19 @@ async function syncRadarSafely(env: RuntimeEnv): Promise<void> {
   }
 }
 
+async function syncGitHubActivitySafely(env: RuntimeEnv) {
+  try {
+    return await syncGitHubActivity(env.DB, env);
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      subsystem: 'github-activity',
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return null;
+  }
+}
+
 async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -71,6 +85,7 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
       app: env.APP_NAME,
       aiMode: env.AI_MODE,
       githubInventoryConfigured: Boolean(env.GITHUB_OWNER),
+      githubActivityConfigured: Boolean(env.GITHUB_OWNER),
       radarSyncConfigured: Boolean(env.RADAR_URL && env.RADAR_SYNC_TOKEN),
       time: new Date().toISOString()
     });
@@ -91,6 +106,15 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
     return json(await syncRadar(env));
   }
 
+  if (path === '/api/github/activity/refresh') {
+    if (request.method !== 'POST') return json({ error: 'Method not allowed' }, { status: 405 });
+    if (!(await radarSyncTriggerAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
+    const activity = await syncGitHubActivity(env.DB, env);
+    if ((activity.eventsCreated ?? 0) > 0) ctx.waitUntil(generateDailyBrief(env.DB));
+    ctx.waitUntil(syncRadarSafely(env));
+    return json({ activity });
+  }
+
   if (path === '/api/github/inventory') {
     if (request.method !== 'POST') return json({ error: 'Method not allowed' }, { status: 405 });
     if (!(await radarSyncTriggerAuthorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
@@ -107,8 +131,10 @@ async function api(request: Request, env: RuntimeEnv, ctx: ExecutionContext): Pr
     if (body.repositories.length > 300) return json({ error: 'Too many repositories in one inventory update' }, { status: 413 });
 
     const inventory = await ingestGitHubRepositoryInventory(env.DB, owner, body.repositories);
+    const activity = await syncGitHubActivitySafely(env);
+    if ((activity?.eventsCreated ?? 0) > 0) ctx.waitUntil(generateDailyBrief(env.DB));
     const radar = await syncRadar(env);
-    return json({ inventory, radar });
+    return json({ inventory, activity, radar });
   }
 
   if (!(await authorized(request, env))) return json({ error: 'Unauthorized' }, { status: 401 });
@@ -258,6 +284,22 @@ export default {
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv, ctx: ExecutionContext): Promise<void> {
     if (controller.cron === '0 7 * * *') ctx.waitUntil(generateDailyBrief(env.DB));
-    ctx.waitUntil(syncRadarSafely(env));
+    ctx.waitUntil((async () => {
+      if (controller.cron === '0 7 * * *') {
+        try {
+          await syncGitHubRepositoryInventory(env.DB, env);
+        } catch (error) {
+          console.error(JSON.stringify({
+            level: 'error',
+            subsystem: 'github-inventory',
+            message: error instanceof Error ? error.message : String(error)
+          }));
+        }
+      }
+
+      const activity = await syncGitHubActivitySafely(env);
+      if ((activity?.eventsCreated ?? 0) > 0) await generateDailyBrief(env.DB);
+      await syncRadarSafely(env);
+    })());
   }
 } satisfies ExportedHandler<RuntimeEnv>;
