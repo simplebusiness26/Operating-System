@@ -12,8 +12,7 @@ on:
       - 'package.json'
       - '.github/workflows/deploy.yml'
 permissions:
-  contents: read
-  statuses: write
+  contents: write
 jobs:
   deploy:
     if: ${{ vars.CLOUDFLARE_DEPLOY_ENABLED == 'true' }}
@@ -92,44 +91,73 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Report Radar bridge readiness to GitHub
+      - name: Verify Radar bridge and trigger initial sync
         if: success()
         shell: bash
+        env:
+          OS_ACCESS_TOKEN: ${{ secrets.OS_ACCESS_TOKEN }}
+          RADAR_SYNC_TOKEN: ${{ secrets.RADAR_SYNC_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           ACCOUNT_JSON=$(curl --fail-with-body --silent --show-error \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
           SUBDOMAIN=$(printf '%s' "$ACCOUNT_JSON" | python -c 'import json,sys; print(json.load(sys.stdin)["result"]["subdomain"])')
-          HEALTH_URL="https://personal-operating-system.${SUBDOMAIN}.workers.dev/api/health"
+          BASE_URL="https://personal-operating-system.${SUBDOMAIN}.workers.dev"
+          HEALTH_URL="${BASE_URL}/api/health"
           HEALTH_JSON=$(curl --fail-with-body --silent --show-error --max-time 15 "$HEALTH_URL")
           CONFIGURED=$(printf '%s' "$HEALTH_JSON" | python -c 'import json,sys; print(str(bool(json.load(sys.stdin).get("radarSyncConfigured"))).lower())')
-          if [ "$CONFIGURED" = "true" ]; then
-            STATE="success"
-            DESCRIPTION="OS deployed; Radar bridge configured"
+
+          if [ -n "$RADAR_SYNC_TOKEN" ]; then
+            REPO_SECRET_PRESENT=true
           else
-            STATE="error"
-            DESCRIPTION="OS deployed; Radar bridge secret missing"
+            REPO_SECRET_PRESENT=false
           fi
-          export STATE DESCRIPTION HEALTH_URL
-          PAYLOAD=$(python - <<'PY'
-import json, os
-print(json.dumps({
-  "state": os.environ["STATE"],
-  "context": "OS Radar Bridge",
-  "description": os.environ["DESCRIPTION"],
-  "target_url": os.environ["HEALTH_URL"],
-}))
-PY
-          )
-          curl --fail-with-body --silent --show-error \
-            -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            -H "Content-Type: application/json" \
-            --data "$PAYLOAD"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+          SYNC_STATUS="not_attempted"
+          if [ "$CONFIGURED" = "true" ] && [ -n "$OS_ACCESS_TOKEN" ]; then
+            HTTP_CODE=$(curl --silent --show-error --max-time 60 \
+              --output /tmp/os-radar-sync.json \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer ${OS_ACCESS_TOKEN}" \
+              "${BASE_URL}/api/radar/sync")
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              SYNC_STATUS="success"
+            else
+              SYNC_STATUS="failed_http_${HTTP_CODE}"
+            fi
+          elif [ "$CONFIGURED" = "true" ]; then
+            SYNC_STATUS="awaiting_event_or_cron"
+          else
+            SYNC_STATUS="bridge_not_configured"
+          fi
+
+          export CONFIGURED REPO_SECRET_PRESENT SYNC_STATUS HEALTH_URL
+          mkdir -p status
+          python - <<'PY' > status/os-radar-bridge.json
+          import json, os
+          from datetime import datetime, timezone
+          print(json.dumps({
+              "checkedAt": datetime.now(timezone.utc).isoformat(),
+              "cloudflareHealthReachable": True,
+              "radarSyncConfigured": os.environ["CONFIGURED"] == "true",
+              "githubRadarSyncSecretPresent": os.environ["REPO_SECRET_PRESENT"] == "true",
+              "initialSyncStatus": os.environ["SYNC_STATUS"],
+              "healthUrl": os.environ["HEALTH_URL"],
+          }, indent=2))
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status/os-radar-bridge.json
+          if git diff --cached --quiet; then
+            echo "Bridge status unchanged."
+          else
+            git commit -m "chore: update OS Radar bridge status [skip ci]"
+            git push
+          fi
+
+          cat status/os-radar-bridge.json
