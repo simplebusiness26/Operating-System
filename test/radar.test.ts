@@ -86,7 +86,11 @@ describe('Operating System -> Radar snapshot', () => {
     expect(capabilities).toEqual(expect.arrayContaining(['authentication', 'maps', 'deployment']));
     expect(capabilities).not.toContain('payments');
     expect(snapshot.projects).toHaveLength(1);
-    expect(snapshot.goals[0]?.name).toContain('Reach a working Brighton pilot');
+    expect(snapshot.goals[0]).toMatchObject({
+      name: 'Explorer project goal',
+      metric: 'project_objective',
+      target: 'Reach a working Brighton pilot',
+    });
 
     const auth = snapshot.capabilities.find((item) => item.capability === 'authentication');
     expect(auth?.providedBy).toEqual(['Explorer']);
