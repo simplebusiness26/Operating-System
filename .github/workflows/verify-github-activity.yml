@@ -1,0 +1,100 @@
+name: Verify GitHub Activity Sync
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-github-activity.yml'
+      - 'src/github-activity.ts'
+      - 'src/index.ts'
+      - 'wrangler.jsonc'
+  schedule:
+    - cron: '37 */6 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: os-github-activity-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OS_URL: https://personal-operating-system.simplebussiness26.workers.dev
+      RADAR_SYNC_TOKEN: ${{ secrets.RADAR_SYNC_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify activity bridge token exists
+        shell: bash
+        run: |
+          if [ -z "$RADAR_SYNC_TOKEN" ]; then
+            echo "RADAR_SYNC_TOKEN is not configured."
+            exit 1
+          fi
+
+      - name: Refresh and verify GitHub activity ingestion
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          http_code="$(curl \
+            --silent \
+            --show-error \
+            --retry 2 \
+            --retry-all-errors \
+            --max-time 90 \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${RADAR_SYNC_TOKEN}" \
+            "${OS_URL}/api/github/activity/refresh")"
+
+          cat "$response_file"
+          echo
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "GitHub activity refresh failed with HTTP ${http_code}."
+            exit 1
+          fi
+
+          python - "$response_file" <<'PY' > /tmp/github-activity-status.json
+          import json, sys
+          from datetime import datetime, timezone
+          data = json.load(open(sys.argv[1]))
+          activity = data.get('activity') or {}
+          if not activity.get('configured'):
+              raise SystemExit('GitHub activity sync is not configured')
+          print(json.dumps({
+              'checkedAt': datetime.now(timezone.utc).isoformat(),
+              'configured': bool(activity.get('configured')),
+              'owner': activity.get('owner'),
+              'mode': activity.get('mode'),
+              'eventsSeen': int(activity.get('eventsSeen') or 0),
+              'eligibleEvents': int(activity.get('eligibleEvents') or 0),
+              'eventsCreated': int(activity.get('eventsCreated') or 0),
+              'skippedExisting': int(activity.get('skippedExisting') or 0),
+              'skippedRepositories': activity.get('skippedRepositories') or [],
+          }, indent=2))
+          PY
+
+      - name: Record verified status
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p status
+          cp /tmp/github-activity-status.json status/github-activity.json
+          cat status/github-activity.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status/github-activity.json
+          if git diff --cached --quiet; then
+            echo "GitHub activity status unchanged."
+          else
+            git commit -m "chore: update GitHub activity status [skip ci]"
+            git push
+          fi
