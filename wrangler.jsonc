@@ -1,4 +1,5 @@
-// Deployment touch: refresh OS context into Radar's managed free sources.
+// Deployment config. REQUIRE_AUTH intentionally remains false until OS_ACCESS_TOKEN is configured;
+// switching it on without the token would lock the owner out of the phone-first dashboard.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "personal-operating-system",
