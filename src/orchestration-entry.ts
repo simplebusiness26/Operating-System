@@ -1,5 +1,6 @@
 import controlPlane from './control-entry';
 import { orchestrationApi } from './orchestration';
+import { syncRevenueHunterExport } from './revenue-hunter-sync';
 import type { RuntimeEnv } from './env';
 import { json } from './utils';
 
@@ -28,6 +29,17 @@ export default {
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv, ctx: ExecutionContext): Promise<void> {
-    return controlPlane.scheduled(controller, env, ctx);
+    ctx.waitUntil((async () => {
+      try {
+        await syncRevenueHunterExport(env.DB, env);
+      } catch (error) {
+        console.error(JSON.stringify({
+          level: 'error',
+          subsystem: 'revenue-hunter-sync',
+          message: error instanceof Error ? error.message : String(error),
+        }));
+      }
+      await controlPlane.scheduled(controller, env, ctx);
+    })());
   },
 } satisfies ExportedHandler<RuntimeEnv>;
