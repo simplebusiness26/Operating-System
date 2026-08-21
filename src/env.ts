@@ -1,28 +1,44 @@
 type GeneratedEnv = Env;
 
-/**
- * Wrangler intentionally generates literal string types for values currently in
- * wrangler.jsonc. Runtime secrets and deploy-time configuration are broader than
- * those literals, so widen the fields the application is designed to change.
- */
+/** Runtime configuration widened beyond literal wrangler-generated values. */
 export type RuntimeEnv = Omit<
   GeneratedEnv,
-  'AI_MODE' | 'AI_MODEL' | 'REQUIRE_AUTH' | 'APP_NAME' | 'RADAR_URL' | 'GITHUB_OWNER' | 'GITHUB_ACTIVITY_SKIP_REPOS'
+  | 'AI_MODE'
+  | 'AI_MODEL'
+  | 'REQUIRE_AUTH'
+  | 'APP_NAME'
+  | 'RADAR_URL'
+  | 'GITHUB_OWNER'
+  | 'GITHUB_ACTIVITY_SKIP_REPOS'
+  | 'CONTROL_PLANE_MODE'
+  | 'AUTO_EXECUTION_LEVEL'
 > & {
   AI_MODE: 'deterministic' | 'workers-ai';
   AI_MODEL: string;
   REQUIRE_AUTH: 'true' | 'false';
   APP_NAME: string;
+  CONTROL_PLANE_MODE?: 'observe' | 'active';
+  AUTO_EXECUTION_LEVEL?: 'none' | 'low' | 'medium' | 'high';
   OS_ACCESS_TOKEN?: string;
+  OS_CALLBACK_URL?: string;
+  OS_CALLBACK_TOKEN?: string;
   GITHUB_WEBHOOK_SECRET?: string;
-  /** GitHub account whose repositories form the owner's automatic project inventory. */
   GITHUB_OWNER?: string;
-  /** Optional GitHub token. Public repositories work without it; a token can add private repos later. */
   GITHUB_TOKEN?: string;
-  /** Comma-separated repositories excluded from polling because a webhook already captures them instantly. */
   GITHUB_ACTIVITY_SKIP_REPOS?: string;
-  /** Public base URL of the owner's Opportunity Radar deployment. */
   RADAR_URL?: string;
-  /** Dedicated machine token shared only with Radar's OS sync endpoint. */
   RADAR_SYNC_TOKEN?: string;
+  RADAR_DISPATCH_URL?: string;
+  AI_FACTORY_DISPATCH_URL?: string;
+  AI_FACTORY_HEALTH_URL?: string;
+  AI_FACTORY_TOKEN?: string;
+  DESIGNLAB_DISPATCH_URL?: string;
+  DESIGNLAB_HEALTH_URL?: string;
+  DESIGNLAB_TOKEN?: string;
+  GHOSTWRITER_DISPATCH_URL?: string;
+  GHOSTWRITER_HEALTH_URL?: string;
+  GHOSTWRITER_TOKEN?: string;
+  REVENUE_HUNTER_DISPATCH_URL?: string;
+  REVENUE_HUNTER_HEALTH_URL?: string;
+  REVENUE_HUNTER_TOKEN?: string;
 };
