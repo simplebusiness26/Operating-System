@@ -79,7 +79,7 @@ async function ingestRecommendation(db: D1Database, sourceSystem: string, payloa
   const now = nowIso();
   await db.prepare(`INSERT INTO recommendations
     (id,source_system,external_id,title,objective,project_name,repository,confidence,priority,status,original_json,derived_json,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,'received',?,?,?,?,?)`)
+    VALUES (?,?,?,?,?,?,?,?,?,'received',?,?,?,?)`)
     .bind(id,sourceSystem,derived.externalId,derived.title,derived.objective,derived.projectName,derived.repository,derived.confidence,derived.priority,
       JSON.stringify(payload),JSON.stringify(derived),now,now).run();
   const recommendation = await db.prepare('SELECT * FROM recommendations WHERE id=?').bind(id).first<Record<string, unknown>>();
