@@ -34,7 +34,8 @@
     "GITHUB_ACTIVITY_SKIP_REPOS": "Operating-System",
     "RADAR_URL": "https://the-opportunity-radar.vercel.app",
     "AI_FACTORY_DISPATCH_URL": "https://ai-factory.simplebussiness26.workers.dev/api/v2/work-orders",
-    "AI_FACTORY_HEALTH_URL": "https://ai-factory.simplebussiness26.workers.dev/api/v2/health"
+    "AI_FACTORY_HEALTH_URL": "https://ai-factory.simplebussiness26.workers.dev/api/v2/health",
+    "REVENUE_HUNTER_EXPORT_URL": "https://revenue-hunter.simplebussiness26.workers.dev/api/exchange/export"
   },
   "triggers": {
     "crons": ["0 7 * * *", "17 * * * *"]
