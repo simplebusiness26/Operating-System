@@ -3,7 +3,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "personal-operating-system",
-  "main": "src/control-entry.ts",
+  "main": "src/orchestration-entry.ts",
   "compatibility_date": "2026-08-18",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
@@ -30,11 +30,12 @@
     "CONTROL_PLANE_MODE": "active",
     "AUTO_EXECUTION_LEVEL": "low",
     "OS_CALLBACK_URL": "https://personal-operating-system.simplebussiness26.workers.dev/api/execution/callback",
-    "AI_FACTORY_DISPATCH_URL": "https://ai-factory.simplebussiness26.workers.dev/api/os/jobs",
-    "AI_FACTORY_HEALTH_URL": "https://ai-factory.simplebussiness26.workers.dev/api/os/health",
     "GITHUB_OWNER": "simplebusiness26",
     "GITHUB_ACTIVITY_SKIP_REPOS": "Operating-System",
-    "RADAR_URL": "https://the-opportunity-radar.vercel.app"
+    "RADAR_URL": "https://the-opportunity-radar.vercel.app",
+    "AI_FACTORY_DISPATCH_URL": "https://ai-factory.simplebussiness26.workers.dev/api/v2/work-orders",
+    "AI_FACTORY_HEALTH_URL": "https://ai-factory.simplebussiness26.workers.dev/api/v2/health",
+    "REVENUE_HUNTER_EXPORT_URL": "https://revenue-hunter.simplebussiness26.workers.dev/api/exchange/export"
   },
   "triggers": {
     "crons": ["0 7 * * *", "17 * * * *"]
