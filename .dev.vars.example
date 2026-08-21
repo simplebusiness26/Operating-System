@@ -1,4 +1,15 @@
 # Copy to .dev.vars for local development. Never commit .dev.vars.
 OS_ACCESS_TOKEN=change-me
+OS_CALLBACK_TOKEN=change-me-separately
 GITHUB_WEBHOOK_SECRET=change-me
 RADAR_SYNC_TOKEN=change-me-with-a-long-random-token
+
+# Optional specialist connectors. Values are exact receiving endpoints and machine tokens.
+AI_FACTORY_DISPATCH_URL=
+AI_FACTORY_TOKEN=
+DESIGNLAB_DISPATCH_URL=
+DESIGNLAB_TOKEN=
+GHOSTWRITER_DISPATCH_URL=
+GHOSTWRITER_TOKEN=
+REVENUE_HUNTER_DISPATCH_URL=
+REVENUE_HUNTER_TOKEN=
