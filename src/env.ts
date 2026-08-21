@@ -29,9 +29,11 @@ export type RuntimeEnv = Omit<
   RADAR_URL?: string;
   RADAR_SYNC_TOKEN?: string;
   RADAR_DISPATCH_URL?: string;
+  RADAR_INGRESS_TOKEN?: string;
   AI_FACTORY_DISPATCH_URL?: string;
   AI_FACTORY_HEALTH_URL?: string;
   AI_FACTORY_TOKEN?: string;
+  FACTORY_RESULT_TOKEN?: string;
   DESIGNLAB_DISPATCH_URL?: string;
   DESIGNLAB_HEALTH_URL?: string;
   DESIGNLAB_TOKEN?: string;
@@ -41,4 +43,6 @@ export type RuntimeEnv = Omit<
   REVENUE_HUNTER_DISPATCH_URL?: string;
   REVENUE_HUNTER_HEALTH_URL?: string;
   REVENUE_HUNTER_TOKEN?: string;
+  REVENUE_HUNTER_INGRESS_TOKEN?: string;
+  REVENUE_HUNTER_EXPORT_URL?: string;
 };
