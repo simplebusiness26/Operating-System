@@ -1,9 +1,9 @@
-// Deployment config. REQUIRE_AUTH intentionally remains false until OS_ACCESS_TOKEN is configured;
-// switching it on without the token would lock the owner out of the phone-first dashboard.
+// Control plane is active. REQUIRE_AUTH stays false until OS_ACCESS_TOKEN is configured;
+// owner-only writes remain independently locked in src/control-entry.ts.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "personal-operating-system",
-  "main": "src/index.ts",
+  "main": "src/control-entry.ts",
   "compatibility_date": "2026-08-18",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
@@ -11,7 +11,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/webhooks/*"]
+    "run_worker_first": ["/api/*", "/webhooks/*", "/"]
   },
   "d1_databases": [
     {
@@ -27,6 +27,9 @@
     "AI_MODEL": "@cf/openai/gpt-oss-20b",
     "REQUIRE_AUTH": "false",
     "APP_NAME": "Operating System",
+    "CONTROL_PLANE_MODE": "active",
+    "AUTO_EXECUTION_LEVEL": "low",
+    "OS_CALLBACK_URL": "https://personal-operating-system.simplebussiness26.workers.dev/api/execution/callback",
     "GITHUB_OWNER": "simplebusiness26",
     "GITHUB_ACTIVITY_SKIP_REPOS": "Operating-System",
     "RADAR_URL": "https://the-opportunity-radar.vercel.app"
