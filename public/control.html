@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#080b0f" />
+  <meta name="description" content="Operating System command centre" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/control.css" />
+  <title>Operating System — Command Centre</title>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">OS</div><div><strong>Operating System</strong><small>Command Centre</small></div></div>
+    <nav class="nav" id="desktopNav">
+      <button class="active" data-view="command">⌁ <span>Command</span></button>
+      <button data-view="needs">! <span>Needs You</span><b id="needsBadge">0</b></button>
+      <button data-view="projects">◫ <span>Projects</span></button>
+      <button data-view="execute">▶ <span>Execute</span></button>
+      <button data-view="timeline">◷ <span>Timeline</span></button>
+      <button data-view="agents">✦ <span>Agents</span></button>
+      <button data-view="studio">✎ <span>Studio</span></button>
+      <button data-view="story">▻ <span>Story</span></button>
+      <button data-view="graph">◇ <span>Graph</span></button>
+    </nav>
+    <div class="side-health" id="sideHealth"><i></i><div><strong>Loading system</strong><small>checking control plane…</small></div></div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div><span class="eyebrow" id="eyebrow">MISSION CONTROL</span><h1 id="title">Command</h1></div>
+      <div class="top-actions"><button class="ghost" id="alertsBtn">Notifications <b id="alertBadge">0</b></button><button class="primary" id="captureBtn">＋ Capture</button></div>
+    </header>
+
+    <div id="securityBanner" class="security hidden"><div><strong>Private access is not locked yet.</strong><span>The control plane is live, but owner-only actions stay disabled until OS_ACCESS_TOKEN is configured.</span></div><button id="securityBtn">Security</button></div>
+
+    <section class="view active" id="view-command">
+      <form class="command glass" id="commandForm">
+        <div><span class="eyebrow">UNIVERSAL COMMAND</span><h2>Tell the system what outcome you want.</h2></div>
+        <div class="command-row"><input id="commandInput" placeholder="What should I work on? Build… Fix… Show me what needs me…" autocomplete="off" /><button>→</button></div>
+        <p id="commandAnswer" class="command-answer">The OS will answer from evidence or route executable work into the control plane.</p>
+      </form>
+
+      <div class="metrics">
+        <article class="metric glass"><small>NEEDS YOU</small><strong id="mNeeds">0</strong><span>human authority</span></article>
+        <article class="metric glass"><small>ACTIVE JOBS</small><strong id="mJobs">0</strong><span>being coordinated</span></article>
+        <article class="metric glass"><small>PROJECTS</small><strong id="mProjects">0</strong><span>live contexts</span></article>
+        <article class="metric glass"><small>UNREAD</small><strong id="mUnread">0</strong><span>important signals</span></article>
+      </div>
+
+      <div class="grid2 command-grid">
+        <article class="panel glass"><div class="head"><div><span class="eyebrow">ATTENTION ENGINE</span><h3>Now</h3></div><button class="link" data-view="needs">OPEN NEEDS YOU</button></div><div id="nowList" class="stack empty">Nothing urgent.</div></article>
+        <article class="panel glass"><div class="head"><div><span class="eyebrow">CHIEF OF STAFF</span><h3>Operating brief</h3></div><button class="link" id="refreshBrief">REFRESH</button></div><div id="briefBox" class="brief-copy empty">Building your operating picture…</div></article>
+      </div>
+
+      <div class="grid2">
+        <article class="panel glass"><div class="head"><div><span class="eyebrow">NEXT</span><h3>Queued leverage</h3></div></div><div id="nextList" class="stack empty">No queued work.</div></article>
+        <article class="panel glass"><div class="head"><div><span class="eyebrow">WAITING</span><h3>Running / blocked</h3></div></div><div id="waitingList" class="stack empty">Nothing waiting.</div></article>
+      </div>
+
+      <article class="panel glass"><div class="head"><div><span class="eyebrow">PROJECT PULSE</span><h3>What is actually moving</h3></div><button class="link" data-view="projects">ALL PROJECTS</button></div><div id="pulseGrid" class="cards empty">No project intelligence yet.</div></article>
+    </section>
+
+    <section class="view" id="view-needs">
+      <div class="intro"><div><span class="eyebrow">HUMAN AUTHORITY</span><h2>Only the things that genuinely need you.</h2><p>Deploys, publishing, sending, spending, destructive actions and decision outcomes stop here. Everything else should keep moving.</p></div></div>
+      <div class="grid2"><article class="panel glass"><div class="head"><h3>Approvals</h3><span class="pill" id="approvalCount">0</span></div><div id="approvalList" class="stack empty">No approvals pending.</div></article><article class="panel glass"><div class="head"><h3>Decision outcomes</h3><span class="pill" id="reviewCount">0</span></div><div id="reviewList" class="stack empty">No decisions due for review.</div></article></div>
+    </section>
+
+    <section class="view" id="view-projects">
+      <div class="intro"><div><span class="eyebrow">LIVE PROJECT INTELLIGENCE</span><h2>Goals, health, blockers and next actions.</h2></div><button class="primary" id="projectBtn">＋ Project</button></div>
+      <div id="projectGrid" class="cards empty">Loading projects…</div>
+    </section>
+
+    <section class="view" id="view-execute">
+      <div class="intro"><div><span class="eyebrow">EXECUTION ENGINE</span><h2>Intent becomes coordinated work.</h2><p>Safe work can move automatically. Risky external actions stop at the approval gate.</p></div><button class="primary" id="jobBtn">＋ Job</button></div>
+      <div class="grid2"><article class="panel glass"><div class="head"><h3>Execution board</h3><span class="pill" id="jobCount">0</span></div><div id="jobList" class="stack empty">No execution jobs yet.</div></article><article class="panel glass"><div class="head"><h3>Experiments</h3><button class="link" id="experimentBtn">＋ PROPOSE</button></div><div id="experimentList" class="stack empty">No experiments yet.</div></article></div>
+    </section>
+
+    <section class="view" id="view-timeline"><div class="toolbar glass"><input id="timelineSearch" placeholder="Search captured history…" /><select id="timelineLimit"><option>30</option><option selected>60</option><option>120</option></select></div><div id="timelineList" class="timeline glass empty">Loading timeline…</div></section>
+
+    <section class="view" id="view-agents"><div class="intro"><div><span class="eyebrow">INTELLIGENCE PIPELINE</span><h2>Eight jobs. Shared evidence.</h2></div></div><div id="agentGrid" class="cards"></div><article class="panel glass"><div class="head"><h3>Recent agent runs</h3></div><div id="agentRuns" class="stack"></div></article></section>
+
+    <section class="view" id="view-studio"><div class="intro"><div><span class="eyebrow">GHOSTWRITER</span><h2>Proof becomes publishable output.</h2></div></div><div class="tabs" id="studioTabs"><button class="active" data-status="">All</button><button data-status="draft">Draft</button><button data-status="ready">Ready</button><button data-status="published">Published</button></div><div id="studioGrid" class="cards empty">Loading content…</div></section>
+
+    <section class="view" id="view-story"><article class="story glass"><span class="eyebrow">DOCUMENTARY ENGINE</span><h2 id="storyTitle">The Build</h2><p id="storyLogline">Loading the story from evidence…</p></article><div id="storyList" class="stack story-list"></div></section>
+
+    <section class="view" id="view-graph"><div class="intro"><div><span class="eyebrow">MEMORY GRAPH + AUTOMATION</span><h2>See what keeps connecting.</h2></div></div><div class="grid2"><article class="panel glass"><div class="head"><h3>Relationships</h3></div><div id="graphList" class="stack empty">No graph relationships yet.</div></article><article class="panel glass"><div class="head"><h3>System health</h3><button class="link" id="healthRefresh">REFRESH</button></div><div id="healthList" class="stack empty">No checks yet.</div></article></div><article class="panel glass"><div class="head"><h3>Automation rules</h3></div><div id="rulesList" class="stack"></div></article></section>
+  </main>
+
+  <nav class="mobile-nav">
+    <button class="active" data-view="command">⌁<small>Command</small></button>
+    <button data-view="needs">!<small>Needs You</small></button>
+    <button class="fab" id="captureFab">＋</button>
+    <button data-view="projects">◫<small>Projects</small></button>
+    <button data-view="execute">▶<small>Execute</small></button>
+  </nav>
+  <div class="mobile-more"><button data-view="timeline">Timeline</button><button data-view="agents">Agents</button><button data-view="studio">Studio</button><button data-view="story">Story</button><button data-view="graph">Graph</button></div>
+</div>
+
+<dialog id="captureDialog"><form id="captureForm"><div class="modal-head"><div><span class="eyebrow">CAPTURE</span><h2>What happened?</h2></div><button type="button" data-close>×</button></div><label>Title<input id="capTitle" required /></label><label>Detail<textarea id="capBody" rows="5"></textarea></label><div class="form2"><label>Project<input id="capProject" list="projectOptions" /></label><label>Type<select id="capType"><option>note</option><option>decision</option><option>learning</option><option>idea</option><option>problem</option><option>milestone</option></select></label></div><button class="submit">Send through intelligence pipeline →</button></form></dialog>
+<dialog id="projectDialog"><form id="projectForm"><div class="modal-head"><h2>Create project</h2><button type="button" data-close>×</button></div><label>Name<input id="newProjectName" required /></label><label>Goal<textarea id="newProjectGoal" rows="4"></textarea></label><button class="submit">Create project →</button></form></dialog>
+<dialog id="jobDialog"><form id="jobForm"><div class="modal-head"><h2>Create execution job</h2><button type="button" data-close>×</button></div><label>Outcome<input id="jobObjective" required placeholder="Build, fix, research, design…" /></label><div class="form2"><label>Project<input id="jobProject" list="projectOptions" /></label><label>Priority<input id="jobPriority" type="number" min="1" max="100" value="65" /></label></div><button class="submit">Route into execution engine →</button></form></dialog>
+<dialog id="experimentDialog"><form id="experimentForm"><div class="modal-head"><h2>Propose experiment</h2><button type="button" data-close>×</button></div><label>Hypothesis<textarea id="expHypothesis" required rows="3"></textarea></label><label>Cheapest test<textarea id="expTest" required rows="3"></textarea></label><label>Success criteria<textarea id="expCriteria" required rows="3"></textarea></label><button class="submit">Create experiment →</button></form></dialog>
+<dialog id="securityDialog"><div class="modal-head"><h2>Owner access</h2><button type="button" data-close>×</button></div><p class="dialog-copy">Owner-only actions stay locked until you configure <code>OS_ACCESS_TOKEN</code> in Cloudflare. Once configured, enter the token here on this device.</p><label>Access token<input id="securityToken" type="password" autocomplete="off" /></label><button class="submit" id="saveToken">Save on this device</button></dialog>
+<dialog id="alertsDialog"><div class="modal-head"><h2>Notifications</h2><button type="button" data-close>×</button></div><div id="alertList" class="stack"></div><button class="submit secondary" id="notifyPermission">Enable phone notifications</button></dialog>
+<datalist id="projectOptions"></datalist>
+<div id="toast" class="toast"></div>
+<script type="module" src="/control.js"></script>
+</body>
+</html>
