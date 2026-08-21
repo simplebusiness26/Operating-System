@@ -1,0 +1,79 @@
+name: Verify Control Plane
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/control-plane.ts'
+      - 'src/control-entry.ts'
+      - 'src/env.ts'
+      - 'test/control-plane.test.ts'
+      - 'migrations/0003_control_plane.sql'
+      - 'public/control.*'
+      - 'public/sw.js'
+      - 'wrangler.jsonc'
+      - '.github/workflows/verify-control-plane.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install
+      - name: Generate Cloudflare binding types
+        run: npm run types
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Tests
+        run: npm test
+      - name: Validate control-plane migration
+        run: |
+          python - <<'PY'
+          import sqlite3
+          db=sqlite3.connect(':memory:')
+          db.executescript('''
+          CREATE TABLE projects(id TEXT PRIMARY KEY);
+          CREATE TABLE events(id TEXT PRIMARY KEY);
+          CREATE TABLE decisions(id TEXT PRIMARY KEY,status TEXT,created_at TEXT);
+          ''')
+          db.executescript(open('migrations/0003_control_plane.sql').read())
+          required={'execution_jobs','execution_steps','approvals','experiments','decision_reviews','notifications','system_checks','connector_receipts','automation_rules'}
+          got={r[0] for r in db.execute("select name from sqlite_master where type='table'")}
+          missing=required-got
+          assert not missing, f'missing tables: {missing}'
+          print('migration schema verified')
+          PY
+      - name: Write verified status
+        if: success()
+        run: |
+          mkdir -p status
+          python - <<'PY' > status/control-plane.json
+          import json, os
+          from datetime import datetime, timezone
+          print(json.dumps({
+            'checkedAt': datetime.now(timezone.utc).isoformat(),
+            'commit': os.environ['GITHUB_SHA'],
+            'types': 'passed',
+            'typecheck': 'passed',
+            'tests': 'passed',
+            'migration': 'passed',
+            'controlPlane': 'verified'
+          }, indent=2))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add status/control-plane.json
+          if git diff --cached --quiet; then
+            echo 'Control-plane status unchanged.'
+          else
+            git commit -m 'chore: record verified control-plane status [skip ci]'
+            git push
+          fi
