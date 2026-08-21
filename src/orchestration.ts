@@ -223,13 +223,13 @@ export async function orchestrationApi(request: Request, env: RuntimeEnv): Promi
   const approve = path.match(/^\/api\/integrations\/recommendations\/([^/]+)\/approve$/);
   if (approve && request.method === 'POST') {
     if (!(await ownerAuthorized(request,env))) return json({error:'Owner authorization required'},{status:401});
-    return json(await approveRecommendation(env.DB,env,decodeURIComponent(approve[1])));
+    return json(await approveRecommendation(env.DB,env,decodeURIComponent(approve[1]!)));
   }
   const reject = path.match(/^\/api\/integrations\/recommendations\/([^/]+)\/reject$/);
   if (reject && request.method === 'POST') {
     if (!(await ownerAuthorized(request,env))) return json({error:'Owner authorization required'},{status:401});
     const payload = await readJson<{reason?:string}>(request);
-    return json(await rejectRecommendation(env.DB,decodeURIComponent(reject[1]),payload.reason || ''));
+    return json(await rejectRecommendation(env.DB,decodeURIComponent(reject[1]!),payload.reason || ''));
   }
   return json({error:'Integration route not found'},{status:404});
 }
