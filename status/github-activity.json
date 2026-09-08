@@ -1,12 +1,12 @@
 {
-  "checkedAt": "2026-09-07T21:44:45.238511+00:00",
+  "checkedAt": "2026-09-08T05:08:07.169769+00:00",
   "configured": true,
   "owner": "simplebusiness26",
   "mode": "public",
   "eventsSeen": 100,
-  "eligibleEvents": 5,
+  "eligibleEvents": 31,
   "eventsCreated": 0,
-  "skippedExisting": 5,
+  "skippedExisting": 31,
   "skippedRepositories": [
     "operating-system"
   ]
